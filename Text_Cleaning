@@ -1,0 +1,125 @@
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+import os
+for dirname,_,filenames in os.walk("input"):
+    for filename in filenames:
+        print(os.path.join(dirname,filename))
+
+df=pd.read_csv("input/Musical_instruments_reviews.csv")
+
+df.shape
+df.head()
+
+df=df[["reviewText","overall"]]
+df.columns=["review","ratings"]
+df.head()
+
+df.isnull().sum()
+
+df=df.dropna().reset_index(drop=True)
+df.isnull().sum()
+
+df["ratings"].unique()
+
+df["ratings"].value_counts()
+
+with plt.style.context(style="fivethirtyeight"):
+    ax=df["ratings"].value_counts().plot.bar(figsize=(18,8),fontsize=15)
+    plt.title(label="Analysing rating feature")
+    plt.xlabel(xlabel="Rating labels")
+    plt.ylabel(ylabel="Number of records")
+    plt.show()
+
+with plt.style.context(style="fivethirtyeight"):
+    ax=df["ratings"].value_counts().plot.pie(figsize=(10,10),fontsize=10,autopct="%.2f%%",startangle=90)
+    plt.title(label="Analysing rating feature")
+    plt.show()
+
+import spacy
+from spacy.lang.en.stop_words import STOP_WORDS
+stopwords=set(STOP_WORDS)
+import string
+punctuations=string.punctuation
+nlp=spacy.load("en_core_web_sm")
+
+def preprocess_text(docx):
+    sentence=[word.lemma_.lower().strip() if word.lemma_ != "-PRON-" else word.lower_ for word in docx]
+    sentence=[word for word in sentence if word not in stopwords and word not in punctuations]
+    sentence=[word for word in sentence if len(word)>1 and word.isalpha()]
+    sentence=" ".join(sentence)
+    return sentence
+
+import re
+import pickle
+cList = pickle.load(open('input/cword_dict.pkl','rb'))
+condition=False
+c_re = re.compile('(%s)' % '|'.join(cList.keys()))
+
+def expandContractions(text, c_re=c_re):
+    def replace(match):
+        return cList[match.group()]
+    return c_re.sub(replace, text)
+
+from tqdm import tqdm
+sentences=[]
+for sentes in tqdm(df["review"]):
+    sentes = expandContractions(sentes)
+    sp_sentes=nlp(text=sentes)
+    cleaned=preprocess_text(sp_sentes)
+    sentences.append(cleaned)
+
+df["cleaned_data"]=sentences
+df=df.sample(frac=1).reset_index(drop=True)
+df.head()
+
+df.shape
+
+df=df[df['cleaned_data'].map(lambda d: len(d)) > 0]
+
+df.shape
+
+from wordcloud import WordCloud, STOPWORDS
+stopwords=set(STOPWORDS)
+from nltk import FreqDist
+doc_list = list(df['cleaned_data'])
+words = [sublist for sublist in doc_list]
+word= FreqDist(words)
+plt.figure(figsize=(18,8))
+wordcloud = WordCloud(width = 1000,background_color ='lightcyan', height = 500,stopwords=stopwords).generate(",".join(str(v) for v in word))  
+plt.imshow(wordcloud)
+plt.axis("off")
+plt.title(label='Wordcloud for frequency words',fontsize=20)
+plt.show()
+
+df["ratings"].value_counts()
+
+from sklearn.utils import resample
+resampled=[]
+for count in df['ratings'].unique():
+    resampled.append(resample(df.loc[df["ratings"]==count],n_samples=df["ratings"].value_counts().max()))
+df=pd.concat(objs=resampled,ignore_index=True).sample(frac=1).reset_index(drop=True)
+df.head()
+
+with plt.style.context(style="fivethirtyeight"):
+    ax=df["ratings"].value_counts().plot.bar(figsize=(18,8),fontsize=15,cmap=plt.cm.Spectral)
+    plt.title(label="Analysing rating feature")
+    plt.xlabel(xlabel="Rating labels")
+    plt.ylabel(ylabel="Number of records")
+    plt.show()
+
+df["ratings"].value_counts()
+
+df.shape
+
+df.head()
+
+df=df.drop(labels="review",axis=1)
+df.head()
+
+df.to_csv("textcleaned_data.csv",index=False)
